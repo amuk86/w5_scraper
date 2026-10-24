@@ -1,0 +1,6 @@
+# Cached HTML is for local development only - never commit it
+cache/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
