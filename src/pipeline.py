@@ -40,3 +40,19 @@ def discover(fetcher, start_url, max_pages=config.MAX_CATALOGUE_PAGES) -> Discov
     found.discovered = len(all_links)
     found.urls = parsers.dedupe(all_links)
     return found
+
+
+def extract_all(fetcher, urls, source_page):
+    """Stage 3: fetch + parse every book page. One bad page is logged and skipped."""
+    raws, failures = [], []
+    for url in urls:
+        try:
+            page = fetcher.get(url)
+            raws.append(parsers.parse_book(page.html, url, source_page.get(url, "manual"), page.fetched_at))
+        except FetchError as exc:
+            warn(f"skipped: {exc}")
+            failures.append({"url": url, "reason": exc.reason, "status": exc.status})
+        except Exception as exc:                         # parse problems must not kill the run either
+            warn(f"skipped (could not parse): {url}: {type(exc).__name__}: {exc}")
+            failures.append({"url": url, "reason": f"{type(exc).__name__}: {exc}", "status": None})
+    return raws, failures

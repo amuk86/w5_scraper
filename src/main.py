@@ -43,6 +43,19 @@ def cmd_discover(args):
           f"unique_urls={len(found.urls)}  (cache hits: {fetcher.cache_hits}, real requests: {fetcher.network_fetches})")
 
 
+@command("extract")
+def cmd_extract(args):
+    """Stage 3 - extract raw records from all book pages and print one."""
+    import json
+    from fetcher import PoliteFetcher
+    from pipeline import discover, extract_all
+    fetcher = PoliteFetcher()
+    found = discover(fetcher, args.base_url.rstrip("/") + config.START_PATH)
+    raws, failures = extract_all(fetcher, found.urls, found.source_page)
+    print(json.dumps(raws[0], indent=2, ensure_ascii=False))
+    print(f"detail_pages={len(raws)}  failed={len(failures)}")
+
+
 # ---- add new commands above this line ----
 
 def main(argv=None):
