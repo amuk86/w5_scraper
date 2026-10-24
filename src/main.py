@@ -22,6 +22,15 @@ def cmd_robots(args):
     print(f"robots.txt -> status={result['status']}  {result['note']}")
 
 
+@command("fetch")
+def cmd_fetch(args):
+    """Stage 1 - fetch catalogue page 1 (or read it from the cache)."""
+    from fetcher import PoliteFetcher
+    url = args.base_url.rstrip("/") + config.START_PATH
+    result = PoliteFetcher().get(url)
+    print(f"{'CACHE HIT' if result.from_cache else 'FETCH'}  {url}  {result.size} bytes")
+
+
 # ---- add new commands above this line ----
 
 def main(argv=None):
