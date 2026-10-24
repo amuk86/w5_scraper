@@ -31,6 +31,18 @@ def cmd_fetch(args):
     print(f"{'CACHE HIT' if result.from_cache else 'FETCH'}  {url}  {result.size} bytes")
 
 
+@command("discover")
+def cmd_discover(args):
+    """Stage 2 - walk the first three catalogue pages and list the book URLs."""
+    from fetcher import PoliteFetcher
+    from pipeline import discover
+    start = args.base_url.rstrip("/") + config.START_PATH
+    fetcher = PoliteFetcher()
+    found = discover(fetcher, start)
+    print(f"catalogue_pages={found.catalogue_pages}, discovered={found.discovered}, "
+          f"unique_urls={len(found.urls)}  (cache hits: {fetcher.cache_hits}, real requests: {fetcher.network_fetches})")
+
+
 # ---- add new commands above this line ----
 
 def main(argv=None):
