@@ -56,3 +56,49 @@ def extract_all(fetcher, urls, source_page):
             warn(f"skipped (could not parse): {url}: {type(exc).__name__}: {exc}")
             failures.append({"url": url, "reason": f"{type(exc).__name__}: {exc}", "status": None})
     return raws, failures
+
+
+def validate_records(raws):
+    """Stage 4: normalize, validate, deduplicate by canonical URL.
+
+    Returns (valid records, error entries, number of duplicates dropped).
+    """
+    from pydantic import ValidationError
+    from models import BookRecord, explain, normalize
+
+    valid, errors, seen, duplicates = [], [], set(), 0
+    for raw in raws:
+        clean = normalize(raw)
+        try:
+            record = BookRecord.model_validate(clean).model_dump()
+        except ValidationError as exc:
+            errors.append({"product_url": raw.get("product_url"), "reason": explain(exc), "raw": raw})
+            continue
+        if record["product_url"] in seen:
+            duplicates += 1                                   # same book twice counts once
+            continue
+        seen.add(record["product_url"])
+        valid.append(record)
+    valid.sort(key=lambda r: r["product_url"])               # stable order -> identical reruns
+    return valid, errors, duplicates
+
+
+def write_json(path, data):
+    import json
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
+def run(base_url=config.BASE_URL, out_dir=config.OUTPUT_DIR, fetcher=None):
+    """Stages 2-4 end to end. books.json is REWRITTEN each run, so a rerun can never duplicate."""
+    from fetcher import PoliteFetcher
+    fetcher = fetcher or PoliteFetcher()
+    found = discover(fetcher, base_url.rstrip("/") + config.START_PATH)
+    raws, failures = extract_all(fetcher, found.urls, found.source_page)
+    valid, errors, duplicates = validate_records(raws)
+    write_json(out_dir / "books.json", valid)
+    write_json(out_dir / "errors.json", errors)
+    print(f"valid={len(valid)} invalid={len(errors)} duplicates={duplicates} failed_pages={len(failures)}")
+    return valid, errors

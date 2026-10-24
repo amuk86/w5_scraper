@@ -56,6 +56,13 @@ def cmd_extract(args):
     print(f"detail_pages={len(raws)}  failed={len(failures)}")
 
 
+@command("run")
+def cmd_run(args):
+    """Stages 2-4 - the whole pipeline: books.json + errors.json."""
+    import pipeline
+    pipeline.run(args.base_url)
+
+
 # ---- add new commands above this line ----
 
 def main(argv=None):
