@@ -58,9 +58,10 @@ def cmd_extract(args):
 
 @command("run")
 def cmd_run(args):
-    """Stages 2-4 - the whole pipeline: books.json + errors.json."""
+    """Stages 2-5 - the whole pipeline: books.json, errors.json, run-report.json."""
     import pipeline
-    pipeline.run(args.base_url)
+    from fetcher import PoliteFetcher
+    pipeline.run(args.base_url, fetcher=PoliteFetcher(delay=args.delay), extra_urls=args.extra_url)
 
 
 # ---- add new commands above this line ----
@@ -69,7 +70,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="FlyRank A9 - the polite scraper")
     parser.add_argument("command", nargs="?", default=list(COMMANDS)[-1], choices=list(COMMANDS))
     parser.add_argument("--base-url", default=config.BASE_URL, help="target site (default: Books to Scrape)")
+    parser.add_argument("--delay", type=float, default=config.MIN_DELAY_SECONDS,
+                        help=f"seconds between real requests (minimum {config.MIN_DELAY_SECONDS})")
+    parser.add_argument("--extra-url", action="append", default=[], metavar="URL",
+                        help="add a URL to the list (use a made-up one to test failure handling)")
     args = parser.parse_args(argv)
+    if args.delay < config.MIN_DELAY_SECONDS:
+        parser.error(f"--delay must be at least {config.MIN_DELAY_SECONDS} seconds - be polite")
     COMMANDS[args.command](args)
 
 

@@ -91,14 +91,43 @@ def write_json(path, data):
     tmp.replace(path)
 
 
-def run(base_url=config.BASE_URL, out_dir=config.OUTPUT_DIR, fetcher=None):
-    """Stages 2-4 end to end. books.json is REWRITTEN each run, so a rerun can never duplicate."""
+def run(base_url=config.BASE_URL, out_dir=config.OUTPUT_DIR, fetcher=None, extra_urls=()):
+    """The whole pipeline. Always ends by writing run-report.json, even if pages failed."""
+    import time
+    from datetime import datetime, timezone
     from fetcher import PoliteFetcher
+
+    started, t0 = datetime.now(timezone.utc), time.monotonic()
     fetcher = fetcher or PoliteFetcher()
+
     found = discover(fetcher, base_url.rstrip("/") + config.START_PATH)
-    raws, failures = extract_all(fetcher, found.urls, found.source_page)
+    print(f"catalogue_pages={found.catalogue_pages}, discovered={found.discovered}, unique_urls={len(found.urls)}")
+
+    urls = parsers.dedupe(found.urls + list(extra_urls))      # extra_urls: e.g. a deliberately fake URL
+    raws, failures = extract_all(fetcher, urls, found.source_page)
+    print(f"detail_pages={len(raws)}")
+
     valid, errors, duplicates = validate_records(raws)
-    write_json(out_dir / "books.json", valid)
+    write_json(out_dir / "books.json", valid)                 # rewritten, never appended -> idempotent
     write_json(out_dir / "errors.json", errors)
-    print(f"valid={len(valid)} invalid={len(errors)} duplicates={duplicates} failed_pages={len(failures)}")
-    return valid, errors
+
+    all_failures = found.failures + failures
+    report = {
+        "started_at": started.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "duration_seconds": round(time.monotonic() - t0, 2),
+        "catalogue_pages": found.catalogue_pages,
+        "urls_discovered": found.discovered,
+        "unique_urls": len(found.urls),
+        "pages_fetched": fetcher.network_fetches,             # real requests that succeeded
+        "cache_hits": fetcher.cache_hits,
+        "retries": fetcher.retries,
+        "valid_records": len(valid),
+        "invalid_records": len(errors),
+        "duplicate_records": duplicates,
+        "failed_pages": len(all_failures),
+        "failures": all_failures,
+    }
+    write_json(out_dir / "run-report.json", report)
+    print(f"valid={report['valid_records']} invalid={report['invalid_records']} "
+          f"failed_pages={report['failed_pages']} duration={report['duration_seconds']}s")
+    return report
